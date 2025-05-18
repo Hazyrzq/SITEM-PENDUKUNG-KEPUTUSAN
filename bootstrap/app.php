@@ -11,7 +11,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        // Middleware alias
+        $middleware->alias([
+            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+        ]);
+
+        // Pastikan middleware 'auth' sudah terdaftar dan diaktifkan untuk pengecekan autentikasi
+        // Ini biasanya otomatis terdaftar oleh Laravel
+        // Middleware Authenticate akan melakukan redirect ke halaman login jika pengguna belum login
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

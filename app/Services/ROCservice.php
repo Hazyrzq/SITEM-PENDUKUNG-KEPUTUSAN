@@ -3,39 +3,76 @@
 namespace App\Services;
 
 use App\Models\Criteria;
-use Illuminate\Support\Collection;
 
 class ROCService
 {
     /**
-     * Menghitung bobot kriteria menggunakan metode Rank Order Centroid (ROC)
-     *
-     * @return Collection
+     * Menghitung bobot kriteria menggunakan metode ROC
      */
-    public function calculateWeights(): Collection
+    public function calculateWeights()
     {
         // Ambil semua kriteria dan urutkan berdasarkan ranking
         $criteria = Criteria::orderBy('rank')->get();
-        $totalCriteria = $criteria->count();
+        $n = $criteria->count();
         
-        // Hitung bobot ROC untuk setiap kriteria
-        foreach ($criteria as $key => $criterion) {
-            $weight = 0;
-            $rank = $criterion->rank;
+        if ($n == 0) {
+            return [];
+        }
+        
+        // Hitung bobot untuk setiap kriteria menggunakan metode ROC
+        $weights = [];
+        $totalWeight = 0;
+        
+        // Rumus ROC: W_k = (1/n) * Sum(i=k to n)(1/i)
+        foreach ($criteria as $index => $criterion) {
+            $rank = $index + 1; // Rank dimulai dari 1
+            $sum = 0;
             
-            // Implementasi rumus ROC: W_j = (1/m) * Σ(1/i) dari i=j sampai i=m
-            // dimana m adalah jumlah kriteria dan j adalah peringkat kriteria
-            for ($i = $rank; $i <= $totalCriteria; $i++) {
-                $weight += (1 / $i);
+            for ($i = $rank; $i <= $n; $i++) {
+                $sum += 1 / $i;
             }
             
-            $weight = $weight / $totalCriteria;
-            
-            // Update bobot di database
-            $criterion->weight = $weight;
+            $weight = (1 / $n) * $sum;
+            $weights[$criterion->id] = $weight;
+            $totalWeight += $weight;
+        }
+        
+        // Normalisasi bobot agar total = 1
+        foreach ($weights as $id => $weight) {
+            $weights[$id] = $weight / $totalWeight;
+        }
+        
+        // Simpan bobot ke database
+        foreach ($criteria as $criterion) {
+            $criterion->weight = $weights[$criterion->id];
             $criterion->save();
         }
         
         return $criteria;
+    }
+    
+    /**
+     * Reset semua bobot kriteria menjadi null
+     */
+    public function resetWeights()
+    {
+        Criteria::query()->update(['weight' => null]);
+        return Criteria::orderBy('rank')->get();
+    }
+    
+    /**
+     * Update ranking kriteria
+     */
+    public function updateRanks(array $ranks)
+    {
+        foreach ($ranks as $id => $rank) {
+            $criterion = Criteria::find($id);
+            if ($criterion) {
+                $criterion->rank = $rank;
+                $criterion->save();
+            }
+        }
+        
+        return Criteria::orderBy('rank')->get();
     }
 }

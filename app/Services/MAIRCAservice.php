@@ -6,194 +6,207 @@ use App\Models\Alternative;
 use App\Models\AlternativeValue;
 use App\Models\Calculation;
 use App\Models\Criteria;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class MAIRCAService
 {
     /**
-     * Menghitung peringkat alternatif menggunakan metode MAIRCA
-     *
-     * @param string $calculationName Nama perhitungan
-     * @return array Hasil perhitungan MAIRCA
+     * Hitung untuk user tertentu
      */
-    public function calculate(string $calculationName): array
+    public function calculateForUser($name, $userId)
     {
-        // 1. Membuat matriks keputusan
-        $matrix = $this->createDecisionMatrix();
-        
-        // 2. Menentukan nilai preferensi alternatif
-        $alternatives = Alternative::all();
-        $alternativeCount = $alternatives->count();
-        $preferenceValue = 1 / $alternativeCount;
-        
-        // 3. Mendapatkan bobot kriteria (dari ROC)
+        // Ambil semua kriteria
         $criteria = Criteria::orderBy('rank')->get();
-        $weights = $criteria->pluck('weight', 'id')->toArray();
         
-        // 4. Menghitung nilai matriks evaluasi teoritis
-        $theoreticalMatrix = $this->calculateTheoreticalMatrix($preferenceValue, $weights);
+        // Ambil alternatif yang memiliki nilai dari user tertentu
+        $alternativeIds = AlternativeValue::where('user_id', $userId)
+            ->select('alternative_id')
+            ->distinct()
+            ->pluck('alternative_id')
+            ->toArray();
+            
+        $alternatives = Alternative::whereIn('id', $alternativeIds)->get();
         
-        // 5. Menghitung nilai matriks evaluasi realistis
-        $realisticMatrix = $this->calculateRealisticMatrix($matrix, $theoreticalMatrix, $criteria);
+        // Periksa minimal ada 2 alternatif untuk perbandingan
+        if (count($alternativeIds) < 2) {
+            throw new \Exception("Minimal diperlukan 2 alternatif dengan nilai untuk melakukan perhitungan.");
+        }
         
-        // 6. Menghitung matriks total gap
-        $gapMatrix = $this->calculateGapMatrix($theoreticalMatrix, $realisticMatrix);
-        
-        // 7. Menghitung nilai akhir fungsi
-        $finalValues = $this->calculateFinalValues($gapMatrix);
-        
-        // Simpan hasil ke database
+        // Buat perhitungan baru
         $calculation = Calculation::create([
-            'name' => $calculationName,
+            'name' => $name,
+            'user_id' => $userId,
             'calculated_at' => now(),
-            'results' => [
-                'decision_matrix' => $matrix,
-                'preference_value' => $preferenceValue,
-                'theoretical_matrix' => $theoreticalMatrix,
-                'realistic_matrix' => $realisticMatrix,
-                'gap_matrix' => $gapMatrix,
-                'final_values' => $finalValues,
-            ],
         ]);
         
-        return $calculation->results;
-    }
-    
-    /**
-     * Membuat matriks keputusan berdasarkan data alternatif dan kriteria
-     */
-    private function createDecisionMatrix(): array
-    {
-        $alternatives = Alternative::with('values.criteria')->get();
-        $criteria = Criteria::orderBy('rank')->get();
-        
-        $matrix = [];
-        
+        // Langkah 1: Membentuk matriks keputusan
+        $decisionMatrix = [];
         foreach ($alternatives as $alternative) {
-            $row = [];
-            
             foreach ($criteria as $criterion) {
-                $value = $alternative->values->where('criteria_id', $criterion->id)->first();
-                $row[$criterion->id] = $value ? $value->value : 0;
-            }
-            
-            $matrix[$alternative->id] = $row;
-        }
-        
-        return $matrix;
-    }
-    
-    /**
-     * Menghitung matriks evaluasi teoritis
-     */
-    private function calculateTheoreticalMatrix(float $preferenceValue, array $weights): array
-    {
-        $theoreticalMatrix = [];
-        
-        foreach (Alternative::all() as $alternative) {
-            $row = [];
-            
-            foreach ($weights as $criteriaId => $weight) {
-                $row[$criteriaId] = $preferenceValue * $weight;
-            }
-            
-            $theoreticalMatrix[$alternative->id] = $row;
-        }
-        
-        return $theoreticalMatrix;
-    }
-    
-    /**
-     * Menghitung matriks evaluasi realistis
-     */
-    private function calculateRealisticMatrix(array $decisionMatrix, array $theoreticalMatrix, Collection $criteria): array
-    {
-        $realisticMatrix = [];
-        
-        foreach ($decisionMatrix as $alternativeId => $alternativeValues) {
-            $row = [];
-            
-            foreach ($alternativeValues as $criteriaId => $value) {
-                $criterion = $criteria->where('id', $criteriaId)->first();
+                $value = AlternativeValue::where('alternative_id', $alternative->id)
+                    ->where('criteria_id', $criterion->id)
+                    ->where('user_id', $userId)
+                    ->value('value');
                 
-                // Mencari nilai minimum dan maksimum untuk kriteria ini
-                $criteriaValues = array_column($decisionMatrix, $criteriaId);
-                $min = min($criteriaValues);
-                $max = max($criteriaValues);
+                if ($value === null) {
+                    // Jika tidak ada nilai, gunakan nilai default 0
+                    $decisionMatrix[$alternative->id][$criterion->id] = 0;
+                } else {
+                    $decisionMatrix[$alternative->id][$criterion->id] = $value;
+                }
+            }
+        }
+        
+        // Langkah 2: Normalisasi matriks keputusan
+        $normalizedMatrix = $this->normalizeMatrix($decisionMatrix, $criteria, $userId);
+        
+        // Langkah 3: Perhitungan matriks pembobotan
+        $weightedMatrix = $this->calculateWeightedMatrix($normalizedMatrix, $criteria);
+        
+        // Langkah 4: Menghitung matriks jarak alternatif dari solusi ideal
+        $distanceMatrix = $this->calculateDistanceMatrix($weightedMatrix, $criteria);
+        
+        // Langkah 5: Menghitung nilai akhir alternatif
+        $finalValues = $this->calculateFinalValues($distanceMatrix, $alternatives, $criteria);
+        
+        // Simpan hasil perhitungan
+        $this->saveCalculationResults($calculation, $finalValues);
+        
+        return $finalValues;
+    }
+    
+    /**
+     * Normalisasi matriks keputusan
+     */
+    private function normalizeMatrix($matrix, $criteria, $userId)
+    {
+        $normalizedMatrix = [];
+        
+        foreach ($matrix as $alternativeId => $values) {
+            foreach ($criteria as $criterion) {
+                $criterionId = $criterion->id;
+                $value = $values[$criterionId];
+                
+                // Cari nilai min dan max untuk kriteria ini dari alternatif dengan nilai
+                $minMaxValues = DB::table('alternative_values')
+                    ->where('criteria_id', $criterionId)
+                    ->where('user_id', $userId)
+                    ->selectRaw('MIN(value) as min_value, MAX(value) as max_value')
+                    ->first();
+                
+                $min = $minMaxValues->min_value;
+                $max = $minMaxValues->max_value;
                 
                 // Normalisasi berdasarkan tipe kriteria (benefit atau cost)
                 if ($criterion->type === 'benefit') {
-                    // Untuk kriteria benefit
-                    $normalizedValue = ($max - $min) != 0 
-                        ? ($value - $min) / ($max - $min)
-                        : 0;
+                    // Untuk kriteria benefit, nilai yang lebih tinggi lebih baik
+                    if ($max == $min) {
+                        $normalizedMatrix[$alternativeId][$criterionId] = 1;
+                    } else {
+                        $normalizedMatrix[$alternativeId][$criterionId] = ($value - $min) / ($max - $min);
+                    }
                 } else {
-                    // Untuk kriteria cost
-                    $normalizedValue = ($max - $min) != 0 
-                        ? ($max - $value) / ($max - $min)
-                        : 0;
+                    // Untuk kriteria cost, nilai yang lebih rendah lebih baik
+                    if ($max == $min) {
+                        $normalizedMatrix[$alternativeId][$criterionId] = 1;
+                    } else {
+                        $normalizedMatrix[$alternativeId][$criterionId] = ($max - $value) / ($max - $min);
+                    }
                 }
-                
-                $theoreticalValue = $theoreticalMatrix[$alternativeId][$criteriaId];
-                $row[$criteriaId] = $theoreticalValue * $normalizedValue;
             }
-            
-            $realisticMatrix[$alternativeId] = $row;
         }
         
-        return $realisticMatrix;
+        return $normalizedMatrix;
     }
     
     /**
-     * Menghitung matriks total gap
+     * Perhitungan matriks pembobotan
      */
-    private function calculateGapMatrix(array $theoreticalMatrix, array $realisticMatrix): array
+    private function calculateWeightedMatrix($normalizedMatrix, $criteria)
     {
-        $gapMatrix = [];
+        $weightedMatrix = [];
         
-        foreach ($theoreticalMatrix as $alternativeId => $theoreticalValues) {
-            $row = [];
-            
-            foreach ($theoreticalValues as $criteriaId => $theoreticalValue) {
-                $realisticValue = $realisticMatrix[$alternativeId][$criteriaId];
-                $row[$criteriaId] = $theoreticalValue - $realisticValue;
+        foreach ($normalizedMatrix as $alternativeId => $values) {
+            foreach ($criteria as $criterion) {
+                $criterionId = $criterion->id;
+                $normalizedValue = $values[$criterionId];
+                $weight = $criterion->weight;
+                
+                $weightedMatrix[$alternativeId][$criterionId] = $normalizedValue * $weight;
             }
-            
-            $gapMatrix[$alternativeId] = $row;
         }
         
-        return $gapMatrix;
+        return $weightedMatrix;
     }
     
     /**
-     * Menghitung nilai akhir fungsi
+     * Perhitungan matriks jarak alternatif dari solusi ideal
      */
-    private function calculateFinalValues(array $gapMatrix): array
+    private function calculateDistanceMatrix($weightedMatrix, $criteria)
+    {
+        $distanceMatrix = [];
+        
+        foreach ($weightedMatrix as $alternativeId => $values) {
+            foreach ($criteria as $criterion) {
+                $criterionId = $criterion->id;
+                $weightedValue = $values[$criterionId];
+                
+                // Jarak dari solusi ideal (1 untuk normalized)
+                $distanceMatrix[$alternativeId][$criterionId] = 1 - $weightedValue;
+            }
+        }
+        
+        return $distanceMatrix;
+    }
+    
+    /**
+     * Menghitung nilai akhir setiap alternatif
+     */
+    private function calculateFinalValues($distanceMatrix, $alternatives, $criteria)
     {
         $finalValues = [];
         
-        foreach ($gapMatrix as $alternativeId => $gapValues) {
-            $finalValues[$alternativeId] = array_sum($gapValues);
-        }
-        
-        // Urutkan alternatif berdasarkan nilai (nilai terendah = peringkat tertinggi)
-        asort($finalValues);
-        
-        // Tambahkan data nama alternatif
-        $alternativesData = [];
-        $rank = 1;
-        
-        foreach ($finalValues as $alternativeId => $value) {
-            $alternative = Alternative::find($alternativeId);
-            $alternativesData[] = [
-                'rank' => $rank++,
-                'id' => $alternativeId,
-                'code' => $alternative->code,
+        foreach ($alternatives as $alternative) {
+            $alternativeId = $alternative->id;
+            $sum = 0;
+            
+            foreach ($criteria as $criterion) {
+                $criterionId = $criterion->id;
+                $sum += $distanceMatrix[$alternativeId][$criterionId];
+            }
+            
+            $finalValues[$alternativeId] = [
+                'alternative_id' => $alternativeId,
                 'name' => $alternative->name,
-                'value' => $value
+                'code' => $alternative->code,
+                'description' => $alternative->description,
+                'distance_sum' => $sum,
+                'final_value' => 1 - ($sum / count($criteria)), // Makin tinggi nilainya makin baik
+                'rank' => 0 // Akan diisi nanti
             ];
         }
         
-        return $alternativesData;
+        // Urutkan berdasarkan nilai akhir dari tinggi ke rendah
+        uasort($finalValues, function($a, $b) {
+            return $b['final_value'] <=> $a['final_value'];
+        });
+        
+        // Tetapkan peringkat
+        $rank = 1;
+        foreach ($finalValues as &$value) {
+            $value['rank'] = $rank++;
+        }
+        
+        return $finalValues;
+    }
+    
+    /**
+     * Simpan hasil perhitungan
+     */
+    private function saveCalculationResults($calculation, $finalValues)
+    {
+        // Simpan hasil perhitungan sebagai JSON di kolom results
+        $calculation->results = $finalValues;
+        $calculation->save();
     }
 }
