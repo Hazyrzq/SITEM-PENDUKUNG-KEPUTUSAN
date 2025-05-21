@@ -3,112 +3,110 @@
 @section('title', 'Detail Alternatif')
 
 @section('content')
-<div class="content-wrapper">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{{ route('admin.dashboard') }}">Dashboard</a></li>
-            <li class="breadcrumb-item"><a href="{{ route('admin.alternatives.index') }}">Alternatif</a></li>
-            <li class="breadcrumb-item active">Detail</li>
-        </ol>
-    </nav>
-
-    <div class="card shadow-sm border-0">
+<div class="container-fluid">
+    <div class="card shadow-sm">
         <div class="card-header bg-primary text-white py-3">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4 class="mb-0"><i class="fas fa-cube me-2"></i>Detail Alternatif: {{ $alternative->name }}</h4>
-                <div>
-                    <a href="{{ route('admin.alternatives.edit', $alternative) }}" class="btn btn-sm btn-light">
-                        <i class="fas fa-edit me-1"></i>Edit
-                    </a>
-                </div>
-            </div>
+            <h5 class="mb-0"><i class="fas fa-cube me-2"></i>Detail Alternatif</h5>
         </div>
-        <div class="card-body p-4">
-            <div class="row mb-4">
+        <div class="card-body">
+            <div class="row">
                 <div class="col-md-6">
-                    <h5 class="fw-bold mb-3">Informasi Alternatif</h5>
-                    <table class="table table-bordered">
+                    <table class="table table-borderless">
                         <tr>
-                            <th width="30%" class="bg-light">Kode</th>
-                            <td><span class="badge bg-secondary">{{ $alternative->code }}</span></td>
+                            <th width="30%">Kode</th>
+                            <td>
+                                <span class="badge bg-secondary">{{ $alternative->code }}</span>
+                            </td>
                         </tr>
                         <tr>
-                            <th class="bg-light">Nama</th>
+                            <th>Nama</th>
                             <td>{{ $alternative->name }}</td>
                         </tr>
                         <tr>
-                            <th class="bg-light">Deskripsi</th>
+                            <th>Deskripsi</th>
                             <td>{{ $alternative->description ?? '-' }}</td>
+                        </tr>
+                        @if($creator)
+                        <tr>
+                            <th>Dibuat Oleh</th>
+                            <td>
+                                <a href="{{ route('admin.users.show', $creator->id) }}" class="text-decoration-none">
+                                    {{ $creator->name }}
+                                </a>
+                            </td>
+                        </tr>
+                        @endif
+                        <tr>
+                            <th>Jumlah Penilaian</th>
+                            <td>
+                                <span class="badge bg-{{ $userValueCount > 0 ? 'success' : 'warning' }}">
+                                    {{ $userValueCount }}
+                                </span>
+                            </td>
                         </tr>
                     </table>
                 </div>
                 <div class="col-md-6">
-                    <h5 class="fw-bold mb-3">Statistik Penilaian User</h5>
-                    <div class="card bg-light border-0">
+                    <div class="card h-100">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">Statistik Penilaian</h6>
+                        </div>
                         <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div>
-                                    <h6 class="mb-0">Jumlah User yang Menilai</h6>
+                            @if($userValueCount > 0)
+                                <p>Alternatif ini telah dinilai oleh <strong>{{ $userValueCount }}</strong> user.</p>
+                                
+                                <div class="mt-3">
+                                    <h6>User yang Telah Menilai:</h6>
+                                    <ul class="list-group">
+                                        @php
+                                            $userValues = \App\Models\AlternativeValue::where('alternative_id', $alternative->id)
+                                                ->select('user_id')
+                                                ->distinct()
+                                                ->with('user')
+                                                ->get();
+                                        @endphp
+                                        
+                                        @foreach($userValues as $userValue)
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                {{ $userValue->user->name }}
+                                                <a href="{{ route('admin.alternatives.user-values', [$alternative->id, $userValue->user_id]) }}" class="btn btn-sm btn-info">
+                                                    <i class="fas fa-eye me-1"></i>Lihat Nilai
+                                                </a>
+                                            </li>
+                                        @endforeach
+                                    </ul>
                                 </div>
-                                <div>
-                                    <span class="badge bg-primary fs-5">{{ $userValueCount }}</span>
+                            @else
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle me-2"></i>Alternatif ini belum dinilai oleh user manapun.
                                 </div>
-                            </div>
+                            @endif
                         </div>
                     </div>
                 </div>
             </div>
-
-            <h5 class="fw-bold mb-3">Daftar User yang Menilai</h5>
-            @if($userValues->isEmpty())
-                <div class="alert alert-info">
-                    <div class="d-flex">
-                        <div class="me-3">
-                            <i class="fas fa-info-circle fa-lg"></i>
-                        </div>
-                        <div>
-                            <h6 class="fw-bold mb-1">Informasi</h6>
-                            <p class="mb-0">Belum ada user yang memberikan nilai untuk alternatif ini.</p>
-                        </div>
-                    </div>
-                </div>
-            @else
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead class="table-light">
-                            <tr>
-                                <th width="5%">No</th>
-                                <th width="20%">Nama User</th>
-                                <th width="25%">Email</th>
-                                <th width="20%">Jumlah Kriteria</th>
-                                <th width="15%">Tanggal Penilaian</th>
-                                <th width="15%" class="text-center">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($userValues as $index => $userValue)
-                                <tr>
-                                    <td>{{ $index + 1 }}</td>
-                                    <td>{{ $userValue->user->name }}</td>
-                                    <td>{{ $userValue->user->email }}</td>
-                                    <td>{{ $userValue->criteria_count }} kriteria</td>
-                                    <td>{{ $userValue->created_at->format('d/m/Y H:i') }}</td>
-                                    <td class="text-center">
-                                        <a href="{{ route('admin.alternatives.user-values', ['alternative' => $alternative, 'user' => $userValue->user_id]) }}" class="btn btn-sm btn-info">
-                                            <i class="fas fa-eye me-1"></i>Lihat Nilai
-                                        </a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-
-            <div class="d-flex justify-content-end mt-4">
+        </div>
+        <div class="card-footer">
+            <div class="d-flex justify-content-between">
                 <a href="{{ route('admin.alternatives.index') }}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left me-1"></i>Kembali
                 </a>
+                
+                <div>
+                    @if($alternative->user_id === null)
+                        <a href="{{ route('admin.alternatives.edit', $alternative) }}" class="btn btn-warning">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </a>
+                    @endif
+                    
+                    <form action="{{ route('admin.alternatives.destroy', $alternative) }}" method="POST" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus alternatif ini? Semua nilai terkait juga akan dihapus.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash-alt me-1"></i>Hapus
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

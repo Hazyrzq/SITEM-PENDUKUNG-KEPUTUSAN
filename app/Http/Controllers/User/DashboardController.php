@@ -7,8 +7,10 @@ use App\Models\Alternative;
 use App\Models\AlternativeValue;
 use App\Models\Calculation;
 use App\Models\Criteria;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class DashboardController extends Controller
 {
@@ -173,5 +175,66 @@ class DashboardController extends Controller
             'recentCalculations',
             'topAlternatives'
         ));
+    }
+
+    /**
+     * Menampilkan halaman profil pengguna
+     */
+    public function profile()
+    {
+        $user = Auth::user();
+        return view('user.profile', compact('user'));
+    }
+
+    /**
+     * Memperbarui profil pengguna
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = Auth::user();
+        
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+        ]);
+        
+        // Jika ada password, validasi dan update
+        if ($request->filled('current_password')) {
+            $request->validate([
+                'current_password' => 'required|string',
+                'password' => 'required|string|min:8|confirmed',
+            ]);
+            
+            // Verifikasi password saat ini
+            if (!Hash::check($request->current_password, $user->password)) {
+                return back()->with('error', 'Password saat ini tidak sesuai!');
+            }
+            
+            // Update password
+            $user->password = Hash::make($request->password);
+        }
+        
+        // Update data lainnya
+        $user->name = $validatedData['name'];
+        $user->email = $validatedData['email'];
+        $user->save();
+        
+        return redirect()->route('user.profile')->with('success', 'Profil berhasil diperbarui!');
+    }
+
+    /**
+     * Menampilkan halaman hasil
+     */
+    public function results()
+    {
+        // Kode untuk halaman hasil
+        $userId = Auth::id();
+        
+        // Perhitungan terbaru
+        $calculations = Calculation::where('user_id', $userId)
+            ->orderBy('calculated_at', 'desc')
+            ->paginate(10);
+            
+        return view('user.results', compact('calculations'));
     }
 }

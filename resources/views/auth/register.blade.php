@@ -15,7 +15,7 @@
                 
                 <div class="card-body p-4">
                     <!-- Register form with visual improvements -->
-                    <form method="POST" action="{{ route('register') }}" id="registerForm">
+                    <form method="POST" action="{{ route('register') }}">
                         @csrf
                         
                         <!-- Decorative element -->
@@ -138,64 +138,4 @@
         </div>
     </div>
 </div>
-
-<!-- Registration Success Modal -->
-<div class="modal fade" id="registrationSuccessModal" tabindex="-1" aria-labelledby="registrationSuccessModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header border-0" style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white;">
-                <h5 class="modal-title" id="registrationSuccessModalLabel">
-                    <i class="fas fa-check-circle me-2"></i>Registrasi Berhasil
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body text-center p-4">
-                <div class="mb-4">
-                    <i class="fas fa-user-check fa-5x" style="color: var(--primary-color);"></i>
-                </div>
-                <h4 class="mb-3">Akun Anda Berhasil Dibuat!</h4>
-                <p class="mb-4">Terima kasih telah mendaftar di SPK VPS Cloud. Silahkan login untuk mulai menggunakan sistem.</p>
-                <a href="{{ route('login') }}" class="btn btn-lg w-100 py-3" 
-                   style="background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; border: none;">
-                    <i class="fas fa-sign-in-alt me-2"></i>Lanjutkan ke Login
-                </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const registerForm = document.getElementById('registerForm');
-    
-    registerForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        // Use fetch to submit the form data
-        fetch(registerForm.action, {
-            method: 'POST',
-            body: new FormData(registerForm),
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            redirect: 'follow'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Show success modal
-                const successModal = new bootstrap.Modal(document.getElementById('registrationSuccessModal'));
-                successModal.show();
-            } else {
-                // Handle errors
-                // You could display the errors on the form
-                console.error('Registration failed:', data.errors);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-        });
-    });
-});
-</script>
 @endsection

@@ -71,6 +71,39 @@
             font-size: 1.1rem;
         }
         
+        /* Dropdown Styles in Sidebar */
+        .sidebar .dropdown-menu {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem 0;
+            margin-left: 2.5rem;
+            box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sidebar .dropdown-item {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 0.6rem 1.2rem;
+            border-radius: 0.3rem;
+            transition: all 0.2s;
+        }
+        
+        .sidebar .dropdown-item:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+        
+        .sidebar .dropdown-item.active {
+            color: var(--primary-color);
+            background-color: #ffffff;
+        }
+        
+        .sidebar .dropdown-item i {
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+        
         /* Main Content Styles */
         .main-content {
             margin-left: var(--sidebar-width);
@@ -250,12 +283,36 @@
                         <span>Kriteria</span>
                     </a>
                 </li>
+                
+                <!-- Dropdown untuk menu Alternatif -->
                 <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('admin.alternatives.*') ? 'active' : '' }}" href="{{ route('admin.alternatives.index') }}">
+                    <a class="nav-link dropdown-toggle {{ request()->routeIs('admin.alternatives.*') || request()->routeIs('admin.user-alternatives') ? 'active' : '' }}" 
+                       href="#alternativesDropdown" 
+                       data-bs-toggle="collapse" 
+                       role="button" 
+                       aria-expanded="{{ request()->routeIs('admin.alternatives.*') || request()->routeIs('admin.user-alternatives') ? 'true' : 'false' }}" 
+                       aria-controls="alternativesDropdown">
                         <i class="fas fa-cubes"></i>
                         <span>Alternatif</span>
                     </a>
+                    <div class="collapse {{ request()->routeIs('admin.alternatives.*') || request()->routeIs('admin.user-alternatives') ? 'show' : '' }}" id="alternativesDropdown">
+                        <div class="ps-4">
+                            <a class="nav-link {{ request()->routeIs('admin.alternatives.index') ? 'active' : '' }}" href="{{ route('admin.alternatives.index') }}">
+                                <i class="fas fa-list"></i>
+                                <span>Semua Alternatif</span>
+                            </a>
+                            <a class="nav-link {{ request()->routeIs('admin.alternatives.create') ? 'active' : '' }}" href="{{ route('admin.alternatives.create') }}">
+                                <i class="fas fa-plus"></i>
+                                <span>Tambah Alternatif</span>
+                            </a>
+                            <a class="nav-link {{ request()->routeIs('admin.alternatives.rated') ? 'active' : '' }}" href="{{ route('admin.alternatives.rated') }}">
+                                <i class="fas fa-star"></i>
+                                <span>Alternatif Dinilai</span>
+                            </a>
+                        </div>
+                    </div>
                 </li>
+                
                 <li class="nav-item">
                     <a class="nav-link {{ request()->routeIs('admin.calculations.*') ? 'active' : '' }}" href="{{ route('admin.calculations.index') }}">
                         <i class="fas fa-calculator"></i>
@@ -304,7 +361,30 @@
             </nav>
 
             <!-- Content -->
-            @yield('content')
+            <div class="content-wrapper">
+                <!-- Flash Messages -->
+                @if(session('success'))
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>{{ session('success') }}</strong>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                @endif
+
+                @if(session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            <strong>{{ session('error') }}</strong>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                @endif
+
+                @yield('content')
+            </div>
         </div>
     </div>
 
@@ -318,6 +398,15 @@
             if (typeof bootstrap === 'undefined') {
                 console.error('Bootstrap JS tidak dimuat dengan benar');
             }
+            
+            // Auto close alerts after 5 seconds
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                setTimeout(() => {
+                    const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+                    bsAlert.close();
+                }, 5000);
+            });
         });
     </script>
     

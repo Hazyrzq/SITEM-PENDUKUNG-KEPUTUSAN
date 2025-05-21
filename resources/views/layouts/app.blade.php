@@ -324,8 +324,14 @@
                                 </a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link {{ request()->is('user/alternatives*') ? 'active' : '' }}" href="{{ route('user.alternatives.index') }}">
+                                <a class="nav-link {{ request()->is('user/alternatives') || request()->is('user/alternatives/*') ? 'active' : '' }}" href="{{ route('user.alternatives.index') }}">
                                     <i class="fas fa-sitemap me-1"></i> Alternatif
+                                </a>
+                            </li>
+                            <!-- Tambahkan menu Alternatif Saya -->
+                            <li class="nav-item">
+                                <a class="nav-link {{ request()->is('user/my-alternatives') ? 'active' : '' }}" href="{{ route('user.alternatives.my-alternatives') }}">
+                                    <i class="fas fa-folder-plus me-1"></i> Alternatif Saya
                                 </a>
                             </li>
                         @endif

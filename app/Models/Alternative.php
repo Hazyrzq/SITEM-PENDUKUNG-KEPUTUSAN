@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Alternative extends Model
 {
@@ -15,7 +15,16 @@ class Alternative extends Model
         'name',
         'code',
         'description',
+        'user_id',
     ];
+
+    /**
+     * Relasi ke model User yang membuat alternatif
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function values(): HasMany
     {
@@ -51,5 +60,13 @@ class Alternative extends Model
         return $query->whereHas('values', function($q) use ($userId) {
             $q->where('user_id', $userId);
         });
+    }
+
+    /**
+     * Scope untuk mendapatkan alternatif yang dibuat oleh user tertentu
+     */
+    public function scopeCreatedBy($query, $userId)
+    {
+        return $query->where('user_id', $userId);
     }
 }

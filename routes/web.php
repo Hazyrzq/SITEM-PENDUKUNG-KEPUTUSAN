@@ -51,6 +51,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     // Alternatif (admin membuat dan mengelola alternatif)
     Route::resource('alternatives', AdminAlternativeController::class);
     Route::get('/alternatives/{alternative}/user-values/{user}', [AdminAlternativeController::class, 'viewUserValues'])->name('alternatives.user-values');
+    Route::get('/user-alternatives/{user}', [AdminAlternativeController::class, 'userAlternatives'])->name('user-alternatives');
+    Route::get('/rated-alternatives', [AdminAlternativeController::class, 'ratedAlternatives'])->name('alternatives.rated');
     
     // Perhitungan (admin bisa melihat semua perhitungan) - Perbaikan urutan route
     Route::get('/calculations', [AdminCalculationController::class, 'index'])->name('calculations.index');
@@ -73,8 +75,15 @@ Route::middleware(['auth'])->prefix('user')->name('user.')->group(function () {
     Route::get('/criteria/{criterion}', [UserCriteriaController::class, 'show'])->name('criteria.show');
     Route::get('/criteria-weights', [UserCriteriaController::class, 'weights'])->name('criteria.weights');
     
-    // Alternatif (user hanya bisa memasukkan nilai)
+    // Alternatif (user bisa membuat alternatif dan memasukkan nilai)
+    // PENTING: Route untuk 'create' harus ditempatkan sebelum route '/{alternative}' agar tidak menganggap 'create' sebagai {alternative}
+    Route::get('/alternatives/create', [UserAlternativeController::class, 'create'])->name('alternatives.create');
+    Route::post('/alternatives', [UserAlternativeController::class, 'store'])->name('alternatives.store');
     Route::get('/alternatives', [UserAlternativeController::class, 'index'])->name('alternatives.index');
+    Route::get('/my-alternatives', [UserAlternativeController::class, 'myAlternatives'])->name('alternatives.my-alternatives');
+    Route::get('/alternatives/{alternative}/edit', [UserAlternativeController::class, 'edit'])->name('alternatives.edit');
+    Route::put('/alternatives/{alternative}', [UserAlternativeController::class, 'update'])->name('alternatives.update');
+    Route::delete('/alternatives/{alternative}', [UserAlternativeController::class, 'destroy'])->name('alternatives.destroy');
     Route::get('/alternatives/{alternative}', [UserAlternativeController::class, 'show'])->name('alternatives.show');
     Route::get('/alternatives/{alternative}/values', [UserAlternativeController::class, 'editValues'])->name('alternatives.values');
     Route::post('/alternatives/{alternative}/values', [UserAlternativeController::class, 'storeValues'])->name('alternatives.store-values');
