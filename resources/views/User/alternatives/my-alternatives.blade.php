@@ -68,21 +68,43 @@
                                     <td class="text-center">
                                         <div class="btn-group">
                                             <a href="{{ route('user.alternatives.show', $alternative) }}" class="btn btn-sm btn-info">
-                                                <i class="fas fa-eye"></i>
+                                                <i class="fas fa-eye me-1"></i>Detail
                                             </a>
                                             <a href="{{ route('user.alternatives.edit', $alternative) }}" class="btn btn-sm btn-warning">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <form action="{{ route('user.alternatives.destroy', $alternative) }}" method="POST" onsubmit="return confirm('Apakah Anda yakin ingin menghapus alternatif ini?');">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-danger">
-                                                    <i class="fas fa-trash-alt"></i>
-                                                </button>
-                                            </form>
+                                            <button type="button" class="btn btn-sm btn-danger" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteModal{{ $alternative->id }}">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         </div>
                                     </td>
                                 </tr>
+                                
+                                <!-- Modal Konfirmasi Hapus -->
+                                <div class="modal fade" id="deleteModal{{ $alternative->id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ $alternative->id }}" aria-hidden="true">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="deleteModalLabel{{ $alternative->id }}">Konfirmasi Hapus</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p>Apakah Anda yakin ingin menghapus alternatif <strong>{{ $alternative->name }}</strong>?</p>
+                                                <p class="text-danger"><small>Tindakan ini tidak dapat dibatalkan.</small></p>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                <form action="{{ route('user.alternatives.destroy', $alternative) }}" method="POST" class="d-inline">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="btn btn-danger">Hapus</button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             @endforeach
                         </tbody>
                     </table>
@@ -90,5 +112,67 @@
             @endif
         </div>
     </div>
+
+    <div class="card shadow-sm border-0 mt-4">
+        <div class="card-header bg-primary text-white py-3">
+            <h4 class="mb-0"><i class="fas fa-info-circle me-2"></i>Tentang Alternatif</h4>
+        </div>
+        <div class="card-body p-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="fw-bold mb-3">Apa itu Alternatif?</h5>
+                    <p>Alternatif adalah pilihan atau opsi yang akan dibandingkan dalam proses pengambilan keputusan menggunakan metode MAIRCA. Setiap alternatif akan dinilai berdasarkan kriteria-kriteria yang telah ditentukan.</p>
+                    <p>Langkah-langkah dalam mengelola alternatif:</p>
+                    <ol>
+                        <li>Buat alternatif baru dengan nama dan deskripsi yang jelas</li>
+                        <li>Berikan nilai untuk setiap kriteria pada alternatif</li>
+                        <li>Pastikan semua alternatif sudah dinilai sebelum perhitungan</li>
+                        <li>Lakukan perhitungan MAIRCA untuk mendapatkan peringkat</li>
+                    </ol>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="fw-bold mb-3">Tips Mengelola Alternatif</h5>
+                    <ul>
+                        <li>Berikan nama alternatif yang mudah dikenali dan spesifik</li>
+                        <li>Tulis deskripsi yang menjelaskan karakteristik alternatif</li>
+                        <li>Pastikan semua alternatif memiliki kode unik untuk identifikasi</li>
+                        <li>Berikan nilai yang objektif untuk setiap kriteria</li>
+                        <li>Minimal buat 2 alternatif untuk dapat melakukan perbandingan</li>
+                    </ul>
+                    <div class="alert alert-warning mt-4">
+                        <div class="d-flex">
+                            <div class="me-3">
+                                <i class="fas fa-exclamation-circle fa-lg"></i>
+                            </div>
+                            <div>
+                                <h6 class="fw-bold mb-1">Perhatian</h6>
+                                <p class="mb-0">Pastikan Anda telah memberikan nilai untuk semua kriteria pada setiap alternatif sebelum melakukan perhitungan MAIRCA agar hasil peringkat akurat.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle modal tidak duplikat
+    const deleteModals = document.querySelectorAll('[id^="deleteModal"]');
+    deleteModals.forEach(modal => {
+        modal.addEventListener('show.bs.modal', function(event) {
+            // Pastikan tidak ada modal backdrop duplikat
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            if (backdrops.length > 1) {
+                backdrops.forEach((backdrop, index) => {
+                    if (index > 0) backdrop.remove();
+                });
+            }
+        });
+    });
+});
+</script>
+@endpush
